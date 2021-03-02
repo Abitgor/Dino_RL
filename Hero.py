@@ -1,75 +1,94 @@
-from abc import ABC
 from PhysxObj import PhysicalObject
-from config import HERO_SIZE
+from image import Image
+from config import DINO_SIT_IMAGE, DINO_IMAGE
+from config import HERO_SIZE, HERO_SIT_SIZE
+from config import HERO_JUMP_VEL
+from config import GRAVITY_ACC, MAX_GRAVITY_ACC
 
 
-class Hero(PhysicalObject, ABC):
+class Hero(PhysicalObject):
+    texture_pack = []
+    t = []
+    for image in DINO_SIT_IMAGE:
+        t.append(Image(image, (0, 0)))
+    texture_pack.append(t)
+    t = []
+    for image in DINO_IMAGE:
+        t.append(Image(image, (0, 0)))
+    texture_pack.append(t)
+
     def __init__(self):
         super().__init__()
-        self._gravity_acc = -1
-        self._jump_vel = 10
-        self.delay = 0
+        self._gravity_acc = GRAVITY_ACC
+        self._max_gravity_acc = MAX_GRAVITY_ACC
+
+        self._jump_vel = HERO_JUMP_VEL
 
         self.set_size(HERO_SIZE[0], HERO_SIZE[1])
         self.set_acc(0, self._gravity_acc)
 
-        self._possible_states = ['nothing', 'fall', 'jump', 'sit']
+        self._state = 'nothing'
+        self._admire_state = 'nothing'
 
-        self._state = self._possible_states[0]
-        self._action_queue = list()
+        self._animation_delay = 5
+        self._animation_frame_count = 6
+
+        self.texture = []
+        self.change_textures()
 
     def _squish(self):
-        self.set_size(HERO_SIZE[0], 10)
+        self.set_size(HERO_SIT_SIZE[0], HERO_SIT_SIZE[1])
 
     def _un_squish(self):
         self.set_size(HERO_SIZE[0], HERO_SIZE[1])
 
+    def _jump(self):
+        self.set_vel(0, self._jump_vel)
+
     def _fall(self):
-        self._state = "fall"
         self.set_acc(0, self._gravity_acc)
 
-    def _jump(self):
-        if self._state == "nothing":
-            self._state = "jump"
-            self.set_vel(0, self._jump_vel)
-        self._fall()
-
-    def _sit(self):
-        self._squish()
-        if self._state == "fall":
-            self.set_acc(0, self._gravity_acc * 10)
-        else:
-            self._state = "sit"
+    def _quick_fall(self):
+        self.set_acc(0, self._max_gravity_acc)
 
     def get_state(self):
         return self._state
 
-    def update_state(self):
-        if self._state == "sit":
-            self.delay += 1
-            if self.delay == 10:
-                self.delay = 0
-                self._state = "nothing"
+    def change_textures(self):
+        self.texture = []
+        if self._state == 'sit':
+            self.texture = self.texture_pack[0]
+        else:
+            self.texture = self.texture_pack[1]
+        for image in self.texture:
+            image.change_location(self.coord)
 
-        if self.coord[1] == 0:
-            if self._state == "nothing":
+    def update_state(self):
+        if self.coord[1] <= 0:
+            if self._state == 'jump' or self._state == 'quick-fall':
+                self._state = 'nothing'
+
+        if self._admire_state == 'nothing':
+            if self._state == 'sit':
+                self._state = 'nothing'
                 self._un_squish()
 
-            if self._state == "fall":
-                self._state = "nothing"
+        elif self._admire_state == 'jump':
+            if self._state == 'nothing':
+                self._state = 'jump'
+                self._jump()
+                self._fall()
 
+        elif self._admire_state == 'sit':
+            if self._state == 'nothing':
+                self._state = 'sit'
+                self._squish()
+            elif self._state == 'jump':
+                self._state = 'quick-fall'
+                self._quick_fall()
 
-class Human(Hero):
-    def __init__(self):
-        super().__init__()
+        self.change_textures()
 
-    def change_state(self, pressed_button, key_list: list):
-        if pressed_button[key_list[0]]:
-            self._jump()
-        if pressed_button[key_list[1]]:
-            self._sit()
+    def change_state(self, admire_state='nothing'):
+        self._admire_state = admire_state
         self.update_state()
-
-
-class Agent(Hero):
-    pass
